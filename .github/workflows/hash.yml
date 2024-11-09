@@ -19,13 +19,13 @@ jobs:
 
     env:
       HASH_FILE: "sha256-checksums.txt"  # Name of the file for storing SHA256 hashes
-      GITHUB_API_VERSION: "2022-11-28"  # Define the GitHub API version as a variable
+      GITHUB_API_VERSION: "2022-11-28"   # Define the GitHub API version as a variable
 
     steps:
-      - name: Setup curl function with options
+      - name: Create curl function script
         run: |
           # Define a reusable function for making GitHub API calls with optional curl options
-          function github_api_curl() {
+          echo 'function github_api_curl() {
             local url="$1"
             local method="${2:-GET}"  # Default to GET if no method is provided
             local curl_opts="${3:-"-sSL"}"  # Default to -sSL if no curl options provided
@@ -35,16 +35,17 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               -X "$method" \
               "$url"
-          }
+          }' > $GITHUB_WORKSPACE/github_api_curl.sh
+          chmod +x $GITHUB_WORKSPACE/github_api_curl.sh
 
       - name: Download release assets
         run: |
+          source $GITHUB_WORKSPACE/github_api_curl.sh  # Source the script to make the function available
           mkdir -p assets  # Create a directory for downloaded assets
           TAG=${{ github.event.release.tag_name }}  # Get the release tag name
-
+          
           # Fetch asset data from GitHub API
           ASSET_DATA=$(github_api_curl "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" "-sSL")
-
           ASSET_URLS=($(echo "$ASSET_DATA" | jq -r '.assets[].browser_download_url'))  # Extract asset URLs
           ASSET_NAMES=($(echo "$ASSET_DATA" | jq -r '.assets[].name'))  # Extract asset names
 
@@ -88,7 +89,6 @@ jobs:
             hash_value=$(sha256sum "$file" | awk '{ print $1 }')  # Calculate the hash
             echo "$hash_value  $file" >> "../${{ env.HASH_FILE }}"  # Append hash to the hash file
           done
-
           # Change back to the previous directory to reference the new hash file
           cd ..
           cat "${{ env.HASH_FILE }}"  # Display the contents of the new hash file
@@ -96,20 +96,18 @@ jobs:
       - name: Check and upload hashes to release
         if: env.assets_downloaded == 'true'  # Only run if assets were downloaded
         run: |
+          source $GITHUB_WORKSPACE/github_api_curl.sh  # Source the script to make the function available
           # Get the Release ID using the GitHub API
           RELEASE_ID=$(github_api_curl "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.event.release.tag_name }}" "-sSL" | jq -r '.id')
-
           echo "Release ID: $RELEASE_ID"
 
           # Check if an existing hash file asset is present
           EXISTING_HASH_FILE="assets/${{ env.HASH_FILE }}"
           if [ -f "$EXISTING_HASH_FILE" ]; then
             echo "Found existing hash file. Comparing..."
-
             # Print the contents of both files for debugging
             echo "New hash file contents:"
             cat "${{ env.HASH_FILE }}"
-
             echo "Existing hash file contents:"
             cat "$EXISTING_HASH_FILE"
 
@@ -136,6 +134,8 @@ jobs:
 
           # Upload the new hash file to the release
           echo "Uploading new hash file..."
+          
+          # Use github_api_curl to upload the new hash file
           github_api_curl "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=${{ env.HASH_FILE }}" \
             "-X POST" \
             "-sSL -H 'Content-Type: application/octet-stream' --data-binary @${{ github.workspace }}/${{ env.HASH_FILE }}" || { echo "Failed to upload hash file"; exit 1; }

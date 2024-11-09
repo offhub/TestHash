@@ -24,18 +24,40 @@ jobs:
     steps:
       - name: Create curl function script
         run: |
-          # Define a reusable function for making GitHub API calls with optional curl options
-          echo 'function github_api_curl() {
-            local url="$1"
-            local method="${2:-GET}"  # Default to GET if no method is provided
-            local curl_opts="${3:-"-sSL"}"  # Default to -sSL if no curl options provided
-            curl $curl_opts \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "X-GitHub-Api-Version: ${{ env.GITHUB_API_VERSION }}" \
-              -H "Accept: application/vnd.github+json" \
-              -X "$method" \
-              "$url"
-          }' > $GITHUB_WORKSPACE/github_api_curl.sh
+          # Generate the github_api_curl.sh script with the function definition
+          echo '#!/bin/bash' > $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '# Function for making GitHub API calls with curl' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '# Usage: github_api_curl <url> [method] [curl_options]' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '# Example: github_api_curl "https://api.github.com/repos/owner/repo" "GET" "-sSL"' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo 'function github_api_curl() {' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    local url="$1"' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    local method="${2:-GET}"' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    local curl_opts="${3:-"-sSL"}"' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    # Ensure GITHUB_TOKEN is set' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    if [ -z "$GITHUB_TOKEN" ]; then' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '        echo "GITHUB_TOKEN is not set. Please set it before running this script."' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '        exit 1' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    fi' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    # Make the API request using curl' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    curl $curl_opts \\' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '        -H "Authorization: token $GITHUB_TOKEN" \\' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '        -H "X-GitHub-Api-Version: 2022-11-28" \\' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '        -H "Accept: application/vnd.github+json" \\' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '        -X "$method" \\' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '        "$url"' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '}' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '# Check if the script is being sourced or executed directly' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo 'if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    echo "This script is intended to be sourced, not executed directly."' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo '    exit 1' >> $GITHUB_WORKSPACE/github_api_curl.sh
+          echo 'fi' >> $GITHUB_WORKSPACE/github_api_curl.sh
+
+          # Make the script executable
           chmod +x $GITHUB_WORKSPACE/github_api_curl.sh
 
       - name: Download release assets
